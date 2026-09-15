@@ -1,0 +1,427 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+
+local TargetPlayer = nil
+local ScriptActive = false
+local ALTURA_OFFSET = Vector3.new(0, 0, 0)
+
+local LOGO_ID = "rbxassetid://107617915493772"
+local TOGGLE_BTN_ID = "rbxassetid://115758382887213"
+
+local sethp = sethiddenproperty or set_hidden_property
+if sethp then
+    task.spawn(function()
+        RunService.RenderStepped:Connect(function()
+            if ScriptActive then
+                pcall(function()
+                    sethp(LocalPlayer, "SimulationRadius", 1e30)
+                    sethp(LocalPlayer, "MaxSimulationRadius", 1e30)
+                end)
+            end
+        end)
+    end)
+end
+
+local function limparInstanciasFisicas(corpo)
+    if not corpo or not corpo:IsA("BasePart") then return end
+    for _, filho in pairs(corpo:GetChildren()) do
+        if filho:IsA("BodyVelocity") or filho:IsA("BodyAngularVelocity") or filho:IsA("NoCollisionConstraint") or filho:IsA("BodyPosition") then
+            filho:Destroy()
+        end
+    end
+    pcall(function()
+        corpo.Velocity = Vector3.new(0, 0, 0)
+        corpo.RotVelocity = Vector3.new(0, 0, 0)
+        corpo.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        corpo.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    end)
+end
+
+local function ExecutarMatterTPNoAlvo()
+    if not ScriptActive or not TargetPlayer or not TargetPlayer.Character then return end
+    local targetHRP = TargetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not targetHRP then return end
+
+    local destinoCFrame = targetHRP.CFrame * CFrame.new(ALTURA_OFFSET)
+
+    for _, item in pairs(workspace:GetDescendants()) do
+        if item:IsA("Model") and item.Name == "ChinookRescue" then
+            for _, part in pairs(item:GetDescendants()) do
+                if part:IsA("BasePart") and not part.Anchored then
+                    if sethp then
+                        pcall(function() sethp(part, "NetworkOwner", LocalPlayer) end)
+                    elseif part.SetNetworkOwner then
+                        pcall(function() part:SetNetworkOwner(LocalPlayer) end)
+                    end
+
+                    limparInstanciasFisicas(part)
+                    part.CFrame = destinoCFrame
+                    limparInstanciasFisicas(part)
+                end
+            end
+        end
+    end
+end
+
+local function StartLoopMatter()
+    ScriptActive = true
+    task.spawn(function()
+        while ScriptActive do
+            ExecutarMatterTPNoAlvo()
+            task.wait(2)
+        end
+    end)
+end
+
+local function StopLoopMatter()
+    ScriptActive = false
+end
+
+local function MakeDraggable(guiObject)
+    local dragging, dragInput, dragStart, startPos
+
+    local function update(input)
+        local delta = input.Position - dragStart
+        guiObject.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+
+    guiObject.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = guiObject.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    guiObject.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            update(input)
+        end
+    end)
+end
+
+if CoreGui:FindFirstChild("MatterChinookV2Gui") then
+    CoreGui.MatterChinookV2Gui:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui", CoreGui)
+ScreenGui.Name = "MatterChinookV2Gui"
+
+local ExternalButton = Instance.new("ImageButton", ScreenGui)
+ExternalButton.Name = "ExternalToggleBtn"
+ExternalButton.Size = UDim2.new(0, 65, 0, 65)
+ExternalButton.Position = UDim2.new(0.02, 0, 0.2, 0)
+ExternalButton.Image = TOGGLE_BTN_ID
+ExternalButton.BackgroundTransparency = 1
+ExternalButton.BorderSizePixel = 0
+
+MakeDraggable(ExternalButton)
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 390, 0, 290)
+MainFrame.Position = UDim2.new(0.5, -195, 0.5, -145)
+MainFrame.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+
+MakeDraggable(MainFrame)
+
+local MainCorner = Instance.new("UICorner", MainFrame)
+MainCorner.CornerRadius = UDim.new(0, 6)
+
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Color = Color3.fromRGB(255, 255, 255)
+MainStroke.Thickness = 1.5
+
+local HeaderFrame = Instance.new("Frame", MainFrame)
+HeaderFrame.Size = UDim2.new(1, 0, 0, 48)
+HeaderFrame.BackgroundTransparency = 1
+
+local LogoImage = Instance.new("ImageLabel", HeaderFrame)
+LogoImage.Size = UDim2.new(0, 32, 0, 32)
+LogoImage.Position = UDim2.new(0, 10, 0, 8)
+LogoImage.Image = LOGO_ID
+LogoImage.BackgroundTransparency = 1
+
+local TitleText = Instance.new("TextLabel", HeaderFrame)
+TitleText.Size = UDim2.new(0, 200, 0, 16)
+TitleText.Position = UDim2.new(0, 50, 0, 8)
+TitleText.Text = "MATTER TP: CHINOOK"
+TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleText.Font = Enum.Font.GothamBold
+TitleText.TextSize = 13
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+TitleText.BackgroundTransparency = 1
+TitleText.TextStrokeTransparency = 1
+
+local SubtitleText = Instance.new("TextLabel", HeaderFrame)
+SubtitleText.Size = UDim2.new(0, 220, 0, 12)
+SubtitleText.Position = UDim2.new(0, 50, 0, 26)
+SubtitleText.Text = "SELECIONE OS JOGADORES E CONFIRME."
+SubtitleText.TextColor3 = Color3.fromRGB(160, 160, 160)
+SubtitleText.Font = Enum.Font.GothamBold
+SubtitleText.TextSize = 8
+SubtitleText.TextXAlignment = Enum.TextXAlignment.Left
+SubtitleText.BackgroundTransparency = 1
+SubtitleText.TextStrokeTransparency = 1
+
+local VersionText = Instance.new("TextLabel", HeaderFrame)
+VersionText.Size = UDim2.new(0, 90, 0, 12)
+VersionText.Position = UDim2.new(1, -100, 0, 8)
+VersionText.Text = "[ 0.0.0.0.1 ]"
+VersionText.TextColor3 = Color3.fromRGB(255, 255, 255)
+VersionText.Font = Enum.Font.Code
+VersionText.TextSize = 10
+VersionText.TextXAlignment = Enum.TextXAlignment.Right
+VersionText.BackgroundTransparency = 1
+VersionText.TextStrokeTransparency = 1
+
+local SubVersionText = Instance.new("TextLabel", HeaderFrame)
+SubVersionText.Size = UDim2.new(0, 90, 0, 12)
+SubVersionText.Position = UDim2.new(1, -100, 0, 22)
+SubVersionText.Text = "SPWN"
+SubVersionText.TextColor3 = Color3.fromRGB(150, 150, 150)
+SubVersionText.Font = Enum.Font.Code
+SubVersionText.TextSize = 8
+SubVersionText.TextXAlignment = Enum.TextXAlignment.Right
+SubVersionText.BackgroundTransparency = 1
+SubVersionText.TextStrokeTransparency = 1
+
+local Line1 = Instance.new("Frame", MainFrame)
+Line1.Size = UDim2.new(1, -20, 0, 1)
+Line1.Position = UDim2.new(0, 10, 0, 48)
+Line1.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Line1.BorderSizePixel = 0
+
+local LaunchBtn = Instance.new("TextButton", MainFrame)
+LaunchBtn.Size = UDim2.new(0.46, 0, 0, 38)
+LaunchBtn.Position = UDim2.new(0.03, 0, 0.2, 0)
+LaunchBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+LaunchBtn.Text = "LAUNCH MATTER\nINICIAR TELEPORTE"
+LaunchBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+LaunchBtn.Font = Enum.Font.GothamBold
+LaunchBtn.TextSize = 10
+LaunchBtn.TextStrokeTransparency = 1
+
+local LaunchCorner = Instance.new("UICorner", LaunchBtn)
+LaunchCorner.CornerRadius = UDim.new(0, 5)
+
+local CancelBtn = Instance.new("TextButton", MainFrame)
+CancelBtn.Size = UDim2.new(0.46, 0, 0, 38)
+CancelBtn.Position = UDim2.new(0.51, 0, 0.2, 0)
+CancelBtn.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+CancelBtn.Text = "CANCELAR MATTER\nFECHAR E CANCELAR"
+CancelBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CancelBtn.Font = Enum.Font.GothamBold
+CancelBtn.TextSize = 10
+CancelBtn.TextStrokeTransparency = 1
+
+local CancelCorner = Instance.new("UICorner", CancelBtn)
+CancelCorner.CornerRadius = UDim.new(0, 5)
+
+local CancelStroke = Instance.new("UIStroke", CancelBtn)
+CancelStroke.Color = Color3.fromRGB(255, 255, 255)
+CancelStroke.Thickness = 1.2
+CancelStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+local PlayerListHeaderFrame = Instance.new("Frame", MainFrame)
+PlayerListHeaderFrame.Size = UDim2.new(0.94, 0, 0, 24)
+PlayerListHeaderFrame.Position = UDim2.new(0.03, 0, 0.36, 0)
+PlayerListHeaderFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+
+local ListHeaderCorner = Instance.new("UICorner", PlayerListHeaderFrame)
+ListHeaderCorner.CornerRadius = UDim.new(0, 4)
+
+local ListHeaderStroke = Instance.new("UIStroke", PlayerListHeaderFrame)
+ListHeaderStroke.Color = Color3.fromRGB(80, 80, 80)
+ListHeaderStroke.Thickness = 1
+
+local ListTitle = Instance.new("TextLabel", PlayerListHeaderFrame)
+ListTitle.Size = UDim2.new(1, -20, 1, 0)
+ListTitle.Position = UDim2.new(0, 10, 0, 0)
+ListTitle.Text = "LISTA DE JOGADORES (0)"
+ListTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+ListTitle.Font = Enum.Font.GothamBold
+ListTitle.TextSize = 9
+ListTitle.TextXAlignment = Enum.TextXAlignment.Left
+ListTitle.BackgroundTransparency = 1
+ListTitle.TextStrokeTransparency = 1
+
+local PlayerScrollFrame = Instance.new("ScrollingFrame", MainFrame)
+PlayerScrollFrame.Size = UDim2.new(0.94, 0, 0, 120)
+PlayerScrollFrame.Position = UDim2.new(0.03, 0, 0.46, 0)
+PlayerScrollFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+PlayerScrollFrame.BorderSizePixel = 0
+PlayerScrollFrame.ScrollBarThickness = 3
+PlayerScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+local ScrollCorner = Instance.new("UICorner", PlayerScrollFrame)
+ScrollCorner.CornerRadius = UDim.new(0, 4)
+
+local UIListLayout = Instance.new("UIListLayout", PlayerScrollFrame)
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 3)
+
+local FooterTextLeft = Instance.new("TextLabel", MainFrame)
+FooterTextLeft.Size = UDim2.new(0, 120, 0, 16)
+FooterTextLeft.Position = UDim2.new(0, 10, 1, -18)
+FooterTextLeft.Text = "MATTER TP //"
+FooterTextLeft.TextColor3 = Color3.fromRGB(120, 120, 120)
+FooterTextLeft.Font = Enum.Font.Code
+FooterTextLeft.TextSize = 8
+FooterTextLeft.TextXAlignment = Enum.TextXAlignment.Left
+FooterTextLeft.BackgroundTransparency = 1
+FooterTextLeft.TextStrokeTransparency = 1
+
+local FooterTextRight = Instance.new("TextLabel", MainFrame)
+FooterTextRight.Size = UDim2.new(0, 120, 0, 16)
+FooterTextRight.Position = UDim2.new(1, -130, 1, -18)
+FooterTextRight.Text = "/////"
+FooterTextRight.TextColor3 = Color3.fromRGB(120, 120, 120)
+FooterTextRight.Font = Enum.Font.Code
+FooterTextRight.TextSize = 8
+FooterTextRight.TextXAlignment = Enum.TextXAlignment.Right
+FooterTextRight.BackgroundTransparency = 1
+FooterTextRight.TextStrokeTransparency = 1
+
+local function UpdatePlayerList()
+    for _, child in pairs(PlayerScrollFrame:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+
+    local count = 0
+    local players = Players:GetPlayers()
+
+    for _, p in pairs(players) do
+        if p ~= LocalPlayer then
+            count = count + 1
+            
+            local ItemFrame = Instance.new("Frame", PlayerScrollFrame)
+            ItemFrame.Size = UDim2.new(1, -6, 0, 30)
+            ItemFrame.BackgroundColor3 = (TargetPlayer == p) and Color3.fromRGB(30, 30, 30) or Color3.fromRGB(18, 18, 18)
+            
+            local ItemCorner = Instance.new("UICorner", ItemFrame)
+            ItemCorner.CornerRadius = UDim.new(0, 4)
+
+            -- Foto de Perfil (Thumbnail)
+            local AvatarImg = Instance.new("ImageLabel", ItemFrame)
+            AvatarImg.Size = UDim2.new(0, 22, 0, 22)
+            AvatarImg.Position = UDim2.new(0, 4, 0.5, -11)
+            AvatarImg.BackgroundTransparency = 1
+            
+            task.spawn(function()
+                local content, isReady = Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+                if isReady then AvatarImg.Image = content end
+            end)
+
+            local AvatarCorner = Instance.new("UICorner", AvatarImg)
+            AvatarCorner.CornerRadius = UDim.new(0, 11)
+
+            -- Nome do Player
+            local DisplayName = Instance.new("TextLabel", ItemFrame)
+            DisplayName.Size = UDim2.new(0, 180, 0, 12)
+            DisplayName.Position = UDim2.new(0, 32, 0, 3)
+            DisplayName.Text = p.DisplayName
+            DisplayName.TextColor3 = Color3.fromRGB(255, 255, 255)
+            DisplayName.Font = Enum.Font.GothamBold
+            DisplayName.TextSize = 9
+            DisplayName.TextXAlignment = Enum.TextXAlignment.Left
+            DisplayName.BackgroundTransparency = 1
+            DisplayName.TextStrokeTransparency = 1
+
+            local Username = Instance.new("TextLabel", ItemFrame)
+            Username.Size = UDim2.new(0, 180, 0, 10)
+            Username.Position = UDim2.new(0, 32, 0, 15)
+            Username.Text = "@" .. p.Name
+            Username.TextColor3 = Color3.fromRGB(140, 140, 140)
+            Username.Font = Enum.Font.Gotham
+            Username.TextSize = 8
+            Username.TextXAlignment = Enum.TextXAlignment.Left
+            Username.BackgroundTransparency = 1
+            Username.TextStrokeTransparency = 1
+
+            if TargetPlayer == p then
+                local CheckImg = Instance.new("TextLabel", ItemFrame)
+                CheckImg.Size = UDim2.new(0, 16, 0, 16)
+                CheckImg.Position = UDim2.new(1, -22, 0.5, -8)
+                CheckImg.Text = "✓"
+                CheckImg.TextColor3 = Color3.fromRGB(255, 255, 255)
+                CheckImg.Font = Enum.Font.GothamBold
+                CheckImg.TextSize = 10
+                CheckImg.BackgroundTransparency = 1
+                CheckImg.TextStrokeTransparency = 1
+            end
+
+            local ClickBtn = Instance.new("TextButton", ItemFrame)
+            ClickBtn.Size = UDim2.new(1, 0, 1, 0)
+            ClickBtn.BackgroundTransparency = 1
+            ClickBtn.Text = ""
+
+            ClickBtn.MouseButton1Click:Connect(function()
+                TargetPlayer = p
+                UpdatePlayerList()
+            end)
+        end
+    end
+
+    ListTitle.Text = "LISTA DE JOGADORES (" .. tostring(count) .. ")"
+    PlayerScrollFrame.CanvasSize = UDim2.new(0, 0, 0, count * 33)
+end
+
+LaunchBtn.MouseButton1Click:Connect(function()
+    if TargetPlayer then
+        StartLoopMatter()
+        LaunchBtn.Text = "MATTER ATIVO!\nLANÇANDO..."
+    else
+        ListTitle.Text = "LISTA DE JOGADORES - SELECIONE UM!"
+    end
+end)
+
+CancelBtn.MouseButton1Click:Connect(function()
+    StopLoopMatter()
+    LaunchBtn.Text = "LAUNCH MATTER\nINICIAR TELEPORTE"
+end)
+
+local lastClickTime = 0
+ExternalButton.MouseButton1Click:Connect(function()
+    local currentTime = tick()
+    if currentTime - lastClickTime < 0.35 then
+        -- DUPLO CLIQUE: DESATIVA TUDO E DESTRÓI O SCRIPT
+        StopLoopMatter()
+        ScreenGui:Destroy()
+        print("Script Matter TP encerrado por Duplo Clique.")
+    else
+        -- CLIQUE ÚNICO: MOSTRA / ESCONDE A INTERFACE
+        MainFrame.Visible = not MainFrame.Visible
+    end
+    lastClickTime = currentTime
+end)
+
+Players.PlayerAdded:Connect(UpdatePlayerList)
+Players.PlayerRemoving:Connect(function(p)
+    if TargetPlayer == p then TargetPlayer = nil end
+    UpdatePlayerList()
+end)
+
+UpdatePlayerList()
