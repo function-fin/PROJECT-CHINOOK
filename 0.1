@@ -1,30 +1,38 @@
+-- // SERVIÇOS ROBLOX // --
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
+-- // VARIÁVEIS DE ESTADO // --
 local TargetPlayer = nil
 local ScriptActive = false
+local BlackHoleActive = false
 local ALTURA_OFFSET = Vector3.new(0, 0, 0)
 
+-- Posição fixa do Buraco Negro (-150, 108, -72)
+local BLACK_HOLE_POS = Vector3.new(-150, 108, -72)
+
+-- IDs dos Assets
 local LOGO_ID = "rbxassetid://107617915493772"
 local TOGGLE_BTN_ID = "rbxassetid://115758382887213"
 
+-- // SIMULATION RADIUS // --
 local sethp = sethiddenproperty or set_hidden_property
 if sethp then
     task.spawn(function()
         RunService.RenderStepped:Connect(function()
-            if ScriptActive then
-                pcall(function()
-                    sethp(LocalPlayer, "SimulationRadius", 1e30)
-                    sethp(LocalPlayer, "MaxSimulationRadius", 1e30)
-                end)
-            end
+            pcall(function()
+                sethp(LocalPlayer, "SimulationRadius", 1e30)
+                sethp(LocalPlayer, "MaxSimulationRadius", 1e30)
+            end)
         end)
     end)
 end
 
+-- // LIMPEZA FÍSICA // --
 local function limparInstanciasFisicas(corpo)
     if not corpo or not corpo:IsA("BasePart") then return end
     for _, filho in pairs(corpo:GetChildren()) do
@@ -40,6 +48,59 @@ local function limparInstanciasFisicas(corpo)
     end)
 end
 
+-- // BURACO NEGRO (BLACK HOLE OTIMIZADO) // --
+task.spawn(function()
+    while true do
+        if BlackHoleActive then
+            for _, item in pairs(Workspace:GetDescendants()) do
+                if item:IsA("Model") and (item.Name == "ChinookRescue" or item.Name:lower():find("chinook")) then
+                    -- Busca apenas o assento principal do helicóptero
+                    local assento = item:FindFirstChild("PilotSeat", true) 
+                        or item:FindFirstChildOfClass("VehicleSeat") 
+                        or item:FindFirstChildOfClass("Seat")
+                    
+                    if assento and not assento.Anchored then
+                        -- Define a propriedade de NetworkOwner no assento
+                        if sethp then
+                            pcall(function() sethp(assento, "NetworkOwner", LocalPlayer) end)
+                        elseif assento.SetNetworkOwner then
+                            pcall(function() assento:SetNetworkOwner(LocalPlayer) end)
+                        end
+
+                        limparInstanciasFisicas(assento)
+                        assento.CFrame = CFrame.new(BLACK_HOLE_POS)
+                        limparInstanciasFisicas(assento)
+                    end
+                end
+            end
+        end
+        -- Intervalo ajustado para 5 segundos a fim de evitar lag
+        task.wait(5)
+    end
+end)
+
+-- // TELETRANSPORTE NO ASSENTO (SEAT-HOPPING BYPASS) // --
+local function executarBypassAssento(assentoAlvo)
+    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local meuHRP = character:FindFirstChild("HumanoidRootPart")
+    local meuHum = character:FindFirstChildOfClass("Humanoid")
+    if not meuHRP or not meuHum or not assentoAlvo then return end
+
+    local posicaoOriginal = meuHRP.CFrame
+
+    meuHRP.CFrame = assentoAlvo.CFrame
+    task.wait(0.4)
+
+    meuHum.Sit = false
+    meuHum.Jump = true
+    meuHRP.CFrame = assentoAlvo.CFrame + Vector3.new(0, 8, 0)
+
+    task.wait(0.2)
+
+    meuHRP.CFrame = posicaoOriginal
+end
+
+-- // EXECUÇÃO DO MATTER TP // --
 local function ExecutarMatterTPNoAlvo()
     if not ScriptActive or not TargetPlayer or not TargetPlayer.Character then return end
     local targetHRP = TargetPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -47,8 +108,8 @@ local function ExecutarMatterTPNoAlvo()
 
     local destinoCFrame = targetHRP.CFrame * CFrame.new(ALTURA_OFFSET)
 
-    for _, item in pairs(workspace:GetDescendants()) do
-        if item:IsA("Model") and item.Name == "ChinookRescue" then
+    for _, item in pairs(Workspace:GetDescendants()) do
+        if item:IsA("Model") and (item.Name == "ChinookRescue" or item.Name:lower():find("chinook")) then
             for _, part in pairs(item:GetDescendants()) do
                 if part:IsA("BasePart") and not part.Anchored then
                     if sethp then
@@ -66,12 +127,13 @@ local function ExecutarMatterTPNoAlvo()
     end
 end
 
+-- // CONTROLE DO LOOP // --
 local function StartLoopMatter()
     ScriptActive = true
     task.spawn(function()
         while ScriptActive do
             ExecutarMatterTPNoAlvo()
-            task.wait(2)
+            task.wait(1.5)
         end
     end)
 end
@@ -80,6 +142,7 @@ local function StopLoopMatter()
     ScriptActive = false
 end
 
+-- // FUNÇÃO ARRASTÁVEL // --
 local function MakeDraggable(guiObject)
     local dragging, dragInput, dragStart, startPos
 
@@ -120,6 +183,7 @@ local function MakeDraggable(guiObject)
     end)
 end
 
+-- // INTERFACE GRÁFICA // --
 if CoreGui:FindFirstChild("MatterChinookV2Gui") then
     CoreGui.MatterChinookV2Gui:Destroy()
 end
@@ -127,6 +191,7 @@ end
 local ScreenGui = Instance.new("ScreenGui", CoreGui)
 ScreenGui.Name = "MatterChinookV2Gui"
 
+-- BOTÃO EXTERNO FLUTUANTE
 local ExternalButton = Instance.new("ImageButton", ScreenGui)
 ExternalButton.Name = "ExternalToggleBtn"
 ExternalButton.Size = UDim2.new(0, 65, 0, 65)
@@ -137,10 +202,11 @@ ExternalButton.BorderSizePixel = 0
 
 MakeDraggable(ExternalButton)
 
+-- PAINEL PRINCIPAL
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 390, 0, 290)
-MainFrame.Position = UDim2.new(0.5, -195, 0.5, -145)
+MainFrame.Size = UDim2.new(0, 480, 0, 290)
+MainFrame.Position = UDim2.new(0.5, -240, 0.5, -145)
 MainFrame.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
@@ -154,6 +220,7 @@ local MainStroke = Instance.new("UIStroke", MainFrame)
 MainStroke.Color = Color3.fromRGB(255, 255, 255)
 MainStroke.Thickness = 1.5
 
+-- HEADER
 local HeaderFrame = Instance.new("Frame", MainFrame)
 HeaderFrame.Size = UDim2.new(1, 0, 0, 48)
 HeaderFrame.BackgroundTransparency = 1
@@ -165,77 +232,103 @@ LogoImage.Image = LOGO_ID
 LogoImage.BackgroundTransparency = 1
 
 local TitleText = Instance.new("TextLabel", HeaderFrame)
-TitleText.Size = UDim2.new(0, 200, 0, 16)
-TitleText.Position = UDim2.new(0, 50, 0, 8)
+TitleText.Size = UDim2.new(0, 180, 0, 16)
+TitleText.Position = UDim2.new(0, 48, 0, 8)
 TitleText.Text = "MATTER TP: CHINOOK"
 TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 TitleText.Font = Enum.Font.GothamBold
-TitleText.TextSize = 13
+TitleText.TextSize = 12
 TitleText.TextXAlignment = Enum.TextXAlignment.Left
 TitleText.BackgroundTransparency = 1
-TitleText.TextStrokeTransparency = 1
 
 local SubtitleText = Instance.new("TextLabel", HeaderFrame)
-SubtitleText.Size = UDim2.new(0, 220, 0, 12)
-SubtitleText.Position = UDim2.new(0, 50, 0, 26)
+SubtitleText.Size = UDim2.new(0, 180, 0, 12)
+SubtitleText.Position = UDim2.new(0, 48, 0, 26)
 SubtitleText.Text = "SELECIONE OS JOGADORES E CONFIRME."
 SubtitleText.TextColor3 = Color3.fromRGB(160, 160, 160)
 SubtitleText.Font = Enum.Font.GothamBold
-SubtitleText.TextSize = 8
+SubtitleText.TextSize = 7
 SubtitleText.TextXAlignment = Enum.TextXAlignment.Left
 SubtitleText.BackgroundTransparency = 1
-SubtitleText.TextStrokeTransparency = 1
+
+-- BOTÃO BLACK HOLE (PARTE SUPERIOR)
+local BlackHoleBtn = Instance.new("TextButton", HeaderFrame)
+BlackHoleBtn.Name = "BlackHoleBtn"
+BlackHoleBtn.Size = UDim2.new(0, 110, 0, 32)
+BlackHoleBtn.Position = UDim2.new(0.52, 0, 0, 8)
+BlackHoleBtn.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+BlackHoleBtn.Text = "BLACK HOLE\nOFF"
+BlackHoleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+BlackHoleBtn.Font = Enum.Font.GothamBold
+BlackHoleBtn.TextSize = 9
+
+local BHCorner = Instance.new("UICorner", BlackHoleBtn)
+BHCorner.CornerRadius = UDim.new(0, 4)
+
+local BHStroke = Instance.new("UIStroke", BlackHoleBtn)
+BHStroke.Color = Color3.fromRGB(255, 255, 255)
+BHStroke.Thickness = 1.2
+BHStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+BlackHoleBtn.MouseButton1Click:Connect(function()
+    BlackHoleActive = not BlackHoleActive
+    if BlackHoleActive then
+        BlackHoleBtn.Text = "BLACK HOLE\nON"
+        BlackHoleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    else
+        BlackHoleBtn.Text = "BLACK HOLE\nOFF"
+        BlackHoleBtn.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+    end
+end)
 
 local VersionText = Instance.new("TextLabel", HeaderFrame)
-VersionText.Size = UDim2.new(0, 90, 0, 12)
-VersionText.Position = UDim2.new(1, -100, 0, 8)
+VersionText.Size = UDim2.new(0, 80, 0, 12)
+VersionText.Position = UDim2.new(1, -85, 0, 8)
 VersionText.Text = "[ 0.0.0.0.1 ]"
 VersionText.TextColor3 = Color3.fromRGB(255, 255, 255)
 VersionText.Font = Enum.Font.Code
-VersionText.TextSize = 10
+VersionText.TextSize = 9
 VersionText.TextXAlignment = Enum.TextXAlignment.Right
 VersionText.BackgroundTransparency = 1
-VersionText.TextStrokeTransparency = 1
 
 local SubVersionText = Instance.new("TextLabel", HeaderFrame)
-SubVersionText.Size = UDim2.new(0, 90, 0, 12)
-SubVersionText.Position = UDim2.new(1, -100, 0, 22)
+SubVersionText.Size = UDim2.new(0, 80, 0, 12)
+SubVersionText.Position = UDim2.new(1, -85, 0, 22)
 SubVersionText.Text = "SPWN"
 SubVersionText.TextColor3 = Color3.fromRGB(150, 150, 150)
 SubVersionText.Font = Enum.Font.Code
 SubVersionText.TextSize = 8
 SubVersionText.TextXAlignment = Enum.TextXAlignment.Right
 SubVersionText.BackgroundTransparency = 1
-SubVersionText.TextStrokeTransparency = 1
 
+-- LINHA DIVISÓRIA
 local Line1 = Instance.new("Frame", MainFrame)
 Line1.Size = UDim2.new(1, -20, 0, 1)
 Line1.Position = UDim2.new(0, 10, 0, 48)
 Line1.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 Line1.BorderSizePixel = 0
 
+-- BOTÕES LAUNCH E CANCELAR
 local LaunchBtn = Instance.new("TextButton", MainFrame)
-LaunchBtn.Size = UDim2.new(0.46, 0, 0, 38)
+LaunchBtn.Size = UDim2.new(0.46, 0, 0, 36)
 LaunchBtn.Position = UDim2.new(0.03, 0, 0.2, 0)
 LaunchBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 LaunchBtn.Text = "LAUNCH MATTER\nINICIAR TELEPORTE"
 LaunchBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
 LaunchBtn.Font = Enum.Font.GothamBold
-LaunchBtn.TextSize = 10
-LaunchBtn.TextStrokeTransparency = 1
+LaunchBtn.TextSize = 9
 
 local LaunchCorner = Instance.new("UICorner", LaunchBtn)
 LaunchCorner.CornerRadius = UDim.new(0, 5)
 
 local CancelBtn = Instance.new("TextButton", MainFrame)
-CancelBtn.Size = UDim2.new(0.46, 0, 0, 38)
+CancelBtn.Size = UDim2.new(0.46, 0, 0, 36)
 CancelBtn.Position = UDim2.new(0.51, 0, 0.2, 0)
 CancelBtn.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
 CancelBtn.Text = "CANCELAR MATTER\nFECHAR E CANCELAR"
 CancelBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 CancelBtn.Font = Enum.Font.GothamBold
-CancelBtn.TextSize = 10
-CancelBtn.TextStrokeTransparency = 1
+CancelBtn.TextSize = 9
 
 local CancelCorner = Instance.new("UICorner", CancelBtn)
 CancelCorner.CornerRadius = UDim.new(0, 5)
@@ -245,8 +338,9 @@ CancelStroke.Color = Color3.fromRGB(255, 255, 255)
 CancelStroke.Thickness = 1.2
 CancelStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
+-- PAINEL ESQUERDO: LISTA DE JOGADORES
 local PlayerListHeaderFrame = Instance.new("Frame", MainFrame)
-PlayerListHeaderFrame.Size = UDim2.new(0.94, 0, 0, 24)
+PlayerListHeaderFrame.Size = UDim2.new(0.46, 0, 0, 24)
 PlayerListHeaderFrame.Position = UDim2.new(0.03, 0, 0.36, 0)
 PlayerListHeaderFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 
@@ -258,18 +352,17 @@ ListHeaderStroke.Color = Color3.fromRGB(80, 80, 80)
 ListHeaderStroke.Thickness = 1
 
 local ListTitle = Instance.new("TextLabel", PlayerListHeaderFrame)
-ListTitle.Size = UDim2.new(1, -20, 1, 0)
-ListTitle.Position = UDim2.new(0, 10, 0, 0)
+ListTitle.Size = UDim2.new(1, -10, 1, 0)
+ListTitle.Position = UDim2.new(0, 8, 0, 0)
 ListTitle.Text = "LISTA DE JOGADORES (0)"
 ListTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 ListTitle.Font = Enum.Font.GothamBold
-ListTitle.TextSize = 9
+ListTitle.TextSize = 8
 ListTitle.TextXAlignment = Enum.TextXAlignment.Left
 ListTitle.BackgroundTransparency = 1
-ListTitle.TextStrokeTransparency = 1
 
 local PlayerScrollFrame = Instance.new("ScrollingFrame", MainFrame)
-PlayerScrollFrame.Size = UDim2.new(0.94, 0, 0, 120)
+PlayerScrollFrame.Size = UDim2.new(0.46, 0, 0, 120)
 PlayerScrollFrame.Position = UDim2.new(0.03, 0, 0.46, 0)
 PlayerScrollFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
 PlayerScrollFrame.BorderSizePixel = 0
@@ -279,10 +372,56 @@ PlayerScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 local ScrollCorner = Instance.new("UICorner", PlayerScrollFrame)
 ScrollCorner.CornerRadius = UDim.new(0, 4)
 
-local UIListLayout = Instance.new("UIListLayout", PlayerScrollFrame)
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-UIListLayout.Padding = UDim.new(0, 3)
+local UIListLayout1 = Instance.new("UIListLayout", PlayerScrollFrame)
+UIListLayout1.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout1.Padding = UDim.new(0, 3)
 
+-- DIVISÓRIA CENTRAL
+local CenterDivider = Instance.new("Frame", MainFrame)
+CenterDivider.Size = UDim2.new(0, 1, 0, 150)
+CenterDivider.Position = UDim2.new(0.5, 0, 0.36, 0)
+CenterDivider.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+CenterDivider.BorderSizePixel = 0
+
+-- PAINEL DIREITO: LISTA DE CHINOOKS
+local ChinookHeaderFrame = Instance.new("Frame", MainFrame)
+ChinookHeaderFrame.Size = UDim2.new(0.46, 0, 0, 24)
+ChinookHeaderFrame.Position = UDim2.new(0.51, 0, 0.36, 0)
+ChinookHeaderFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+
+local ChinookHeaderCorner = Instance.new("UICorner", ChinookHeaderFrame)
+ChinookHeaderCorner.CornerRadius = UDim.new(0, 4)
+
+local ChinookHeaderStroke = Instance.new("UIStroke", ChinookHeaderFrame)
+ChinookHeaderStroke.Color = Color3.fromRGB(80, 80, 80)
+ChinookHeaderStroke.Thickness = 1
+
+local ChinookTitle = Instance.new("TextLabel", ChinookHeaderFrame)
+ChinookTitle.Size = UDim2.new(1, -10, 1, 0)
+ChinookTitle.Position = UDim2.new(0, 8, 0, 0)
+ChinookTitle.Text = "CHINOOKS (0)"
+ChinookTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+ChinookTitle.Font = Enum.Font.GothamBold
+ChinookTitle.TextSize = 8
+ChinookTitle.TextXAlignment = Enum.TextXAlignment.Left
+ChinookTitle.BackgroundTransparency = 1
+
+local ChinookScrollFrame = Instance.new("ScrollingFrame", MainFrame)
+ChinookScrollFrame.Size = UDim2.new(0.46, 0, 0, 120)
+ChinookScrollFrame.Position = UDim2.new(0.51, 0, 0.46, 0)
+ChinookScrollFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+ChinookScrollFrame.BorderSizePixel = 0
+ChinookScrollFrame.ScrollBarThickness = 3
+ChinookScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+local ChinookScrollCorner = Instance.new("UICorner", ChinookScrollFrame)
+ChinookScrollCorner.CornerRadius = UDim.new(0, 4)
+
+local UIListLayout2 = Instance.new("UIListLayout", ChinookScrollFrame)
+UIListLayout2.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout2.Padding = UDim.new(0, 3)
+
+-- RODAPÉ
 local FooterTextLeft = Instance.new("TextLabel", MainFrame)
 FooterTextLeft.Size = UDim2.new(0, 120, 0, 16)
 FooterTextLeft.Position = UDim2.new(0, 10, 1, -18)
@@ -292,7 +431,6 @@ FooterTextLeft.Font = Enum.Font.Code
 FooterTextLeft.TextSize = 8
 FooterTextLeft.TextXAlignment = Enum.TextXAlignment.Left
 FooterTextLeft.BackgroundTransparency = 1
-FooterTextLeft.TextStrokeTransparency = 1
 
 local FooterTextRight = Instance.new("TextLabel", MainFrame)
 FooterTextRight.Size = UDim2.new(0, 120, 0, 16)
@@ -303,74 +441,72 @@ FooterTextRight.Font = Enum.Font.Code
 FooterTextRight.TextSize = 8
 FooterTextRight.TextXAlignment = Enum.TextXAlignment.Right
 FooterTextRight.BackgroundTransparency = 1
-FooterTextRight.TextStrokeTransparency = 1
 
+-- // ATUALIZAÇÃO DA LISTA DE JOGADORES // --
 local function UpdatePlayerList()
     for _, child in pairs(PlayerScrollFrame:GetChildren()) do
         if child:IsA("Frame") then child:Destroy() end
     end
 
     local count = 0
-    local players = Players:GetPlayers()
+    local allPlayers = Players:GetPlayers()
 
-    for _, p in pairs(players) do
+    for _, p in pairs(allPlayers) do
         if p ~= LocalPlayer then
             count = count + 1
-            
+
             local ItemFrame = Instance.new("Frame", PlayerScrollFrame)
-            ItemFrame.Size = UDim2.new(1, -6, 0, 30)
-            ItemFrame.BackgroundColor3 = (TargetPlayer == p) and Color3.fromRGB(30, 30, 30) or Color3.fromRGB(18, 18, 18)
-            
+            ItemFrame.Size = UDim2.new(1, -6, 0, 32)
+            ItemFrame.BackgroundColor3 = (TargetPlayer == p) and Color3.fromRGB(35, 35, 35) or Color3.fromRGB(18, 18, 18)
+
             local ItemCorner = Instance.new("UICorner", ItemFrame)
             ItemCorner.CornerRadius = UDim.new(0, 4)
 
-            -- Foto de Perfil (Thumbnail)
             local AvatarImg = Instance.new("ImageLabel", ItemFrame)
-            AvatarImg.Size = UDim2.new(0, 22, 0, 22)
-            AvatarImg.Position = UDim2.new(0, 4, 0.5, -11)
+            AvatarImg.Size = UDim2.new(0, 24, 0, 24)
+            AvatarImg.Position = UDim2.new(0, 4, 0.5, -12)
             AvatarImg.BackgroundTransparency = 1
-            
+
+            -- Thumbnail assíncrona
             task.spawn(function()
-                local content, isReady = Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-                if isReady then AvatarImg.Image = content end
+                pcall(function()
+                    local content = Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+                    AvatarImg.Image = content
+                end)
             end)
 
             local AvatarCorner = Instance.new("UICorner", AvatarImg)
-            AvatarCorner.CornerRadius = UDim.new(0, 11)
+            AvatarCorner.CornerRadius = UDim.new(0, 12)
 
-            -- Nome do Player
             local DisplayName = Instance.new("TextLabel", ItemFrame)
-            DisplayName.Size = UDim2.new(0, 180, 0, 12)
-            DisplayName.Position = UDim2.new(0, 32, 0, 3)
+            DisplayName.Size = UDim2.new(0, 110, 0, 12)
+            DisplayName.Position = UDim2.new(0, 32, 0, 4)
             DisplayName.Text = p.DisplayName
             DisplayName.TextColor3 = Color3.fromRGB(255, 255, 255)
             DisplayName.Font = Enum.Font.GothamBold
-            DisplayName.TextSize = 9
+            DisplayName.TextSize = 8
             DisplayName.TextXAlignment = Enum.TextXAlignment.Left
             DisplayName.BackgroundTransparency = 1
-            DisplayName.TextStrokeTransparency = 1
 
             local Username = Instance.new("TextLabel", ItemFrame)
-            Username.Size = UDim2.new(0, 180, 0, 10)
-            Username.Position = UDim2.new(0, 32, 0, 15)
+            Username.Size = UDim2.new(0, 110, 0, 10)
+            Username.Position = UDim2.new(0, 32, 0, 16)
             Username.Text = "@" .. p.Name
             Username.TextColor3 = Color3.fromRGB(140, 140, 140)
             Username.Font = Enum.Font.Gotham
-            Username.TextSize = 8
+            Username.TextSize = 7
             Username.TextXAlignment = Enum.TextXAlignment.Left
             Username.BackgroundTransparency = 1
-            Username.TextStrokeTransparency = 1
 
             if TargetPlayer == p then
-                local CheckImg = Instance.new("TextLabel", ItemFrame)
-                CheckImg.Size = UDim2.new(0, 16, 0, 16)
-                CheckImg.Position = UDim2.new(1, -22, 0.5, -8)
-                CheckImg.Text = "✓"
-                CheckImg.TextColor3 = Color3.fromRGB(255, 255, 255)
-                CheckImg.Font = Enum.Font.GothamBold
-                CheckImg.TextSize = 10
-                CheckImg.BackgroundTransparency = 1
-                CheckImg.TextStrokeTransparency = 1
+                local CheckMark = Instance.new("TextLabel", ItemFrame)
+                CheckMark.Size = UDim2.new(0, 16, 0, 16)
+                CheckMark.Position = UDim2.new(1, -20, 0.5, -8)
+                CheckMark.Text = "✓"
+                CheckMark.TextColor3 = Color3.fromRGB(255, 255, 255)
+                CheckMark.Font = Enum.Font.GothamBold
+                CheckMark.TextSize = 10
+                CheckMark.BackgroundTransparency = 1
             end
 
             local ClickBtn = Instance.new("TextButton", ItemFrame)
@@ -386,15 +522,65 @@ local function UpdatePlayerList()
     end
 
     ListTitle.Text = "LISTA DE JOGADORES (" .. tostring(count) .. ")"
-    PlayerScrollFrame.CanvasSize = UDim2.new(0, 0, 0, count * 33)
+    PlayerScrollFrame.CanvasSize = UDim2.new(0, 0, 0, count * 35)
 end
 
+-- // ATUALIZAÇÃO DA LISTA DE CHINOOKS // --
+local function UpdateChinookList()
+    for _, child in pairs(ChinookScrollFrame:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+
+    local count = 0
+
+    -- Escaneamento
+    for _, item in pairs(Workspace:GetDescendants()) do
+        if item:IsA("Model") and (item.Name == "ChinookRescue" or item.Name:lower():find("chinook")) then
+            count = count + 1
+
+            local ItemFrame = Instance.new("Frame", ChinookScrollFrame)
+            ItemFrame.Size = UDim2.new(1, -6, 0, 32)
+            ItemFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+
+            local ItemCorner = Instance.new("UICorner", ItemFrame)
+            ItemCorner.CornerRadius = UDim.new(0, 4)
+
+            local ChinookLabel = Instance.new("TextLabel", ItemFrame)
+            ChinookLabel.Size = UDim2.new(1, -10, 1, 0)
+            ChinookLabel.Position = UDim2.new(0, 10, 0, 0)
+            ChinookLabel.Text = "CHINOOK " .. tostring(count)
+            ChinookLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            ChinookLabel.Font = Enum.Font.GothamBold
+            ChinookLabel.TextSize = 10
+            ChinookLabel.TextXAlignment = Enum.TextXAlignment.Left
+            ChinookLabel.BackgroundTransparency = 1
+
+            local ClickBtn = Instance.new("TextButton", ItemFrame)
+            ClickBtn.Size = UDim2.new(1, 0, 1, 0)
+            ClickBtn.BackgroundTransparency = 1
+            ClickBtn.Text = ""
+
+            local chinookModel = item
+            ClickBtn.MouseButton1Click:Connect(function()
+                local assento = chinookModel:FindFirstChild("PilotSeat", true) 
+                    or chinookModel:FindFirstChildOfClass("VehicleSeat") 
+                    or chinookModel:FindFirstChildOfClass("Seat")
+                if assento then
+                    executarBypassAssento(assento)
+                end
+            end)
+        end
+    end
+
+    ChinookTitle.Text = "CHINOOKS (" .. tostring(count) .. ")"
+    ChinookScrollFrame.CanvasSize = UDim2.new(0, 0, 0, count * 35)
+end
+
+-- // EVENTOS DE ATUALIZAÇÃO // --
 LaunchBtn.MouseButton1Click:Connect(function()
     if TargetPlayer then
         StartLoopMatter()
         LaunchBtn.Text = "MATTER ATIVO!\nLANÇANDO..."
-    else
-        ListTitle.Text = "LISTA DE JOGADORES - SELECIONE UM!"
     end
 end)
 
@@ -407,12 +593,10 @@ local lastClickTime = 0
 ExternalButton.MouseButton1Click:Connect(function()
     local currentTime = tick()
     if currentTime - lastClickTime < 0.35 then
-        -- DUPLO CLIQUE: DESATIVA TUDO E DESTRÓI O SCRIPT
         StopLoopMatter()
+        BlackHoleActive = false
         ScreenGui:Destroy()
-        print("Script Matter TP encerrado por Duplo Clique.")
     else
-        -- CLIQUE ÚNICO: MOSTRA / ESCONDE A INTERFACE
         MainFrame.Visible = not MainFrame.Visible
     end
     lastClickTime = currentTime
@@ -424,4 +608,30 @@ Players.PlayerRemoving:Connect(function(p)
     UpdatePlayerList()
 end)
 
+-- Monitoramento constante da entrada e saída de veículos
+Workspace.DescendantAdded:Connect(function(descendant)
+    if descendant:IsA("Model") and (descendant.Name == "ChinookRescue" or descendant.Name:lower():find("chinook")) then
+        task.wait(0.2)
+        UpdateChinookList()
+    end
+end)
+
+Workspace.DescendantRemoving:Connect(function(descendant)
+    if descendant:IsA("Model") and (descendant.Name == "ChinookRescue" or descendant.Name:lower():find("chinook")) then
+        task.wait(0.2)
+        UpdateChinookList()
+    end
+end)
+
+-- Loop de verificação contínua
+task.spawn(function()
+    while true do
+        UpdatePlayerList()
+        UpdateChinookList()
+        task.wait(2)
+    end
+end)
+
+-- Inicialização imediata
 UpdatePlayerList()
+UpdateChinookList()
