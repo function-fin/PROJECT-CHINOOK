@@ -36,7 +36,7 @@ end
 local function limparInstanciasFisicas(corpo)
     if not corpo or not corpo:IsA("BasePart") then return end
     for _, filho in pairs(corpo:GetChildren()) do
-        if filho:IsA("BodyVelocity") or filho:IsA("BodyAngularVelocity") or filho:IsA("NoCollisionConstraint") or filho:IsA("BodyPosition") or filho:IsA("RocketPropulsion") then
+        if filho:IsA("BodyVelocity") or filho:IsA("BodyAngularVelocity") or filho:IsA("NoCollisionConstraint") or filho:IsA("BodyPosition") then
             filho:Destroy()
         end
     end
@@ -45,21 +45,22 @@ local function limparInstanciasFisicas(corpo)
         corpo.RotVelocity = Vector3.new(0, 0, 0)
         corpo.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
         corpo.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-        corpo.CanCollide = false
     end)
 end
 
--- // BURACO NEGRO (BLACK HOLE) // --
+-- // BURACO NEGRO (BLACK HOLE OTIMIZADO) // --
 task.spawn(function()
     while true do
         if BlackHoleActive then
             for _, item in pairs(Workspace:GetDescendants()) do
                 if item:IsA("Model") and (item.Name == "ChinookRescue" or item.Name:lower():find("chinook")) then
+                    -- Busca apenas o assento principal do helicóptero
                     local assento = item:FindFirstChild("PilotSeat", true) 
                         or item:FindFirstChildOfClass("VehicleSeat") 
                         or item:FindFirstChildOfClass("Seat")
-
+                    
                     if assento and not assento.Anchored then
+                        -- Define a propriedade de NetworkOwner no assento
                         if sethp then
                             pcall(function() sethp(assento, "NetworkOwner", LocalPlayer) end)
                         elseif assento.SetNetworkOwner then
@@ -68,24 +69,13 @@ task.spawn(function()
 
                         limparInstanciasFisicas(assento)
                         assento.CFrame = CFrame.new(BLACK_HOLE_POS)
-                    end
-
-                    for _, part in pairs(item:GetDescendants()) do
-                        if part:IsA("BasePart") and not part.Anchored then
-                            if sethp then
-                                pcall(function() sethp(part, "NetworkOwner", LocalPlayer) end)
-                            elseif part.SetNetworkOwner then
-                                pcall(function() part:SetNetworkOwner(LocalPlayer) end)
-                            end
-
-                            limparInstanciasFisicas(part)
-                            part.CFrame = CFrame.new(BLACK_HOLE_POS)
-                        end
+                        limparInstanciasFisicas(assento)
                     end
                 end
             end
         end
-        task.wait(3)
+        -- Intervalo ajustado para 5 segundos a fim de evitar lag
+        task.wait(5)
     end
 end)
 
@@ -120,21 +110,6 @@ local function ExecutarMatterTPNoAlvo()
 
     for _, item in pairs(Workspace:GetDescendants()) do
         if item:IsA("Model") and (item.Name == "ChinookRescue" or item.Name:lower():find("chinook")) then
-            local assento = item:FindFirstChild("PilotSeat", true) 
-                or item:FindFirstChildOfClass("VehicleSeat") 
-                or item:FindFirstChildOfClass("Seat")
-
-            if assento and not assento.Anchored then
-                if sethp then
-                    pcall(function() sethp(assento, "NetworkOwner", LocalPlayer) end)
-                elseif assento.SetNetworkOwner then
-                    pcall(function() assento:SetNetworkOwner(LocalPlayer) end)
-                end
-
-                limparInstanciasFisicas(assento)
-                assento.CFrame = destinoCFrame
-            end
-
             for _, part in pairs(item:GetDescendants()) do
                 if part:IsA("BasePart") and not part.Anchored then
                     if sethp then
@@ -145,6 +120,7 @@ local function ExecutarMatterTPNoAlvo()
 
                     limparInstanciasFisicas(part)
                     part.CFrame = destinoCFrame
+                    limparInstanciasFisicas(part)
                 end
             end
         end
@@ -157,7 +133,7 @@ local function StartLoopMatter()
     task.spawn(function()
         while ScriptActive do
             ExecutarMatterTPNoAlvo()
-            task.wait(1)
+            task.wait(1.5)
         end
     end)
 end
@@ -275,7 +251,7 @@ SubtitleText.TextSize = 7
 SubtitleText.TextXAlignment = Enum.TextXAlignment.Left
 SubtitleText.BackgroundTransparency = 1
 
--- BOTÃO BLACK HOLE
+-- BOTÃO BLACK HOLE (PARTE SUPERIOR)
 local BlackHoleBtn = Instance.new("TextButton", HeaderFrame)
 BlackHoleBtn.Name = "BlackHoleBtn"
 BlackHoleBtn.Size = UDim2.new(0, 110, 0, 32)
@@ -308,7 +284,7 @@ end)
 local VersionText = Instance.new("TextLabel", HeaderFrame)
 VersionText.Size = UDim2.new(0, 80, 0, 12)
 VersionText.Position = UDim2.new(1, -85, 0, 8)
-VersionText.Text = "[ 0.0.0.0.3 ]"
+VersionText.Text = "[ 0.0.0.0.1 ]"
 VersionText.TextColor3 = Color3.fromRGB(255, 255, 255)
 VersionText.Font = Enum.Font.Code
 VersionText.TextSize = 9
@@ -391,7 +367,6 @@ PlayerScrollFrame.Position = UDim2.new(0.03, 0, 0.46, 0)
 PlayerScrollFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
 PlayerScrollFrame.BorderSizePixel = 0
 PlayerScrollFrame.ScrollBarThickness = 3
-PlayerScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 PlayerScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 
 local ScrollCorner = Instance.new("UICorner", PlayerScrollFrame)
@@ -437,7 +412,6 @@ ChinookScrollFrame.Position = UDim2.new(0.51, 0, 0.46, 0)
 ChinookScrollFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
 ChinookScrollFrame.BorderSizePixel = 0
 ChinookScrollFrame.ScrollBarThickness = 3
-ChinookScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 ChinookScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 
 local ChinookScrollCorner = Instance.new("UICorner", ChinookScrollFrame)
@@ -468,7 +442,7 @@ FooterTextRight.TextSize = 8
 FooterTextRight.TextXAlignment = Enum.TextXAlignment.Right
 FooterTextRight.BackgroundTransparency = 1
 
--- // LÓGICA DE PREENCHIMENTO DAS LISTAS // --
+-- // ATUALIZAÇÃO DA LISTA DE JOGADORES // --
 local function UpdatePlayerList()
     for _, child in pairs(PlayerScrollFrame:GetChildren()) do
         if child:IsA("Frame") then child:Destroy() end
@@ -493,6 +467,7 @@ local function UpdatePlayerList()
             AvatarImg.Position = UDim2.new(0, 4, 0.5, -12)
             AvatarImg.BackgroundTransparency = 1
 
+            -- Thumbnail assíncrona
             task.spawn(function()
                 pcall(function()
                     local content = Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
@@ -547,6 +522,7 @@ local function UpdatePlayerList()
     end
 
     ListTitle.Text = "LISTA DE JOGADORES (" .. tostring(count) .. ")"
+    PlayerScrollFrame.CanvasSize = UDim2.new(0, 0, 0, count * 35)
 end
 
 local function UpdateChinookList()
@@ -556,6 +532,7 @@ local function UpdateChinookList()
 
     local count = 0
 
+    -- Escaneamento
     for _, item in pairs(Workspace:GetDescendants()) do
         if item:IsA("Model") and (item.Name == "ChinookRescue" or item.Name:lower():find("chinook")) then
             count = count + 1
@@ -595,9 +572,10 @@ local function UpdateChinookList()
     end
 
     ChinookTitle.Text = "CHINOOKS (" .. tostring(count) .. ")"
+    ChinookScrollFrame.CanvasSize = UDim2.new(0, 0, 0, count * 35)
 end
 
--- // EVENTOS DOS BOTÕES DA UI // --
+-- // EVENTOS DE ATUALIZAÇÃO // --
 LaunchBtn.MouseButton1Click:Connect(function()
     if TargetPlayer then
         StartLoopMatter()
@@ -623,13 +601,13 @@ ExternalButton.MouseButton1Click:Connect(function()
     lastClickTime = currentTime
 end)
 
--- // LISTENERS DE EVENTOS DA SESSÃO // --
 Players.PlayerAdded:Connect(UpdatePlayerList)
 Players.PlayerRemoving:Connect(function(p)
     if TargetPlayer == p then TargetPlayer = nil end
     UpdatePlayerList()
 end)
 
+-- Monitoramento constante da entrada e saída de veículos
 Workspace.DescendantAdded:Connect(function(descendant)
     if descendant:IsA("Model") and (descendant.Name == "ChinookRescue" or descendant.Name:lower():find("chinook")) then
         task.wait(0.2)
@@ -644,7 +622,7 @@ Workspace.DescendantRemoving:Connect(function(descendant)
     end
 end)
 
--- Loop de verificação contínua para manter dados em tempo real
+-- Loop de verificação contínua
 task.spawn(function()
     while true do
         UpdatePlayerList()
@@ -653,6 +631,6 @@ task.spawn(function()
     end
 end)
 
--- Inicialização imediata ao carregar o script
+-- Inicialização imediata
 UpdatePlayerList()
 UpdateChinookList()
