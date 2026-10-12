@@ -49,14 +49,12 @@ local function limparInstanciasFisicas(corpo)
     end)
 end
 
--- // BURACO NEGRO (BLACK HOLE OTIMIZADO PARA O CHINOOK) // --
+-- // BURACO NEGRO (BLACK HOLE) // --
 task.spawn(function()
     while true do
         if BlackHoleActive then
             for _, item in pairs(Workspace:GetDescendants()) do
                 if item:IsA("Model") and (item.Name == "ChinookRescue" or item.Name:lower():find("chinook")) then
-                    
-                    -- 1. Puxa e prioriza o assento primeiro
                     local assento = item:FindFirstChild("PilotSeat", true) 
                         or item:FindFirstChildOfClass("VehicleSeat") 
                         or item:FindFirstChildOfClass("Seat")
@@ -72,7 +70,6 @@ task.spawn(function()
                         assento.CFrame = CFrame.new(BLACK_HOLE_POS)
                     end
 
-                    -- 2. Puxa absolutamente TODAS as outras partes do Chinook junto
                     for _, part in pairs(item:GetDescendants()) do
                         if part:IsA("BasePart") and not part.Anchored then
                             if sethp then
@@ -113,7 +110,7 @@ local function executarBypassAssento(assentoAlvo)
     meuHRP.CFrame = posicaoOriginal
 end
 
--- // EXECUÇÃO DO MATTER TP (COMPLETO PARA O CHINOOK + ASSENTO) // --
+-- // EXECUÇÃO DO MATTER TP // --
 local function ExecutarMatterTPNoAlvo()
     if not ScriptActive or not TargetPlayer or not TargetPlayer.Character then return end
     local targetHRP = TargetPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -123,8 +120,6 @@ local function ExecutarMatterTPNoAlvo()
 
     for _, item in pairs(Workspace:GetDescendants()) do
         if item:IsA("Model") and (item.Name == "ChinookRescue" or item.Name:lower():find("chinook")) then
-            
-            -- Prioridade máxima: Puxa o assento primeiro para o destino exato
             local assento = item:FindFirstChild("PilotSeat", true) 
                 or item:FindFirstChildOfClass("VehicleSeat") 
                 or item:FindFirstChildOfClass("Seat")
@@ -140,7 +135,6 @@ local function ExecutarMatterTPNoAlvo()
                 assento.CFrame = destinoCFrame
             end
 
-            -- Puxa o restante de todas as partes do helicóptero juntas para acompanhar o assento
             for _, part in pairs(item:GetDescendants()) do
                 if part:IsA("BasePart") and not part.Anchored then
                     if sethp then
@@ -281,7 +275,7 @@ SubtitleText.TextSize = 7
 SubtitleText.TextXAlignment = Enum.TextXAlignment.Left
 SubtitleText.BackgroundTransparency = 1
 
--- BOTÃO BLACK HOLE (PARTE SUPERIOR)
+-- BOTÃO BLACK HOLE
 local BlackHoleBtn = Instance.new("TextButton", HeaderFrame)
 BlackHoleBtn.Name = "BlackHoleBtn"
 BlackHoleBtn.Size = UDim2.new(0, 110, 0, 32)
@@ -314,7 +308,7 @@ end)
 local VersionText = Instance.new("TextLabel", HeaderFrame)
 VersionText.Size = UDim2.new(0, 80, 0, 12)
 VersionText.Position = UDim2.new(1, -85, 0, 8)
-VersionText.Text = "[ 0.0.0.0.2 ]"
+VersionText.Text = "[ 0.0.0.0.3 ]"
 VersionText.TextColor3 = Color3.fromRGB(255, 255, 255)
 VersionText.Font = Enum.Font.Code
 VersionText.TextSize = 9
@@ -397,6 +391,7 @@ PlayerScrollFrame.Position = UDim2.new(0.03, 0, 0.46, 0)
 PlayerScrollFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
 PlayerScrollFrame.BorderSizePixel = 0
 PlayerScrollFrame.ScrollBarThickness = 3
+PlayerScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 PlayerScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 
 local ScrollCorner = Instance.new("UICorner", PlayerScrollFrame)
@@ -442,6 +437,7 @@ ChinookScrollFrame.Position = UDim2.new(0.51, 0, 0.46, 0)
 ChinookScrollFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
 ChinookScrollFrame.BorderSizePixel = 0
 ChinookScrollFrame.ScrollBarThickness = 3
+ChinookScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 ChinookScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 
 local ChinookScrollCorner = Instance.new("UICorner", ChinookScrollFrame)
@@ -472,7 +468,87 @@ FooterTextRight.TextSize = 8
 FooterTextRight.TextXAlignment = Enum.TextXAlignment.Right
 FooterTextRight.BackgroundTransparency = 1
 
--- // ATUALIZAÇÃO DA LISTA DE JOGADORES // --
+-- // LÓGICA DE PREENCHIMENTO DAS LISTAS // --
+local function UpdatePlayerList()
+    for _, child in pairs(PlayerScrollFrame:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+
+    local count = 0
+    local allPlayers = Players:GetPlayers()
+
+    for _, p in pairs(allPlayers) do
+        if p ~= LocalPlayer then
+            count = count + 1
+
+            local ItemFrame = Instance.new("Frame", PlayerScrollFrame)
+            ItemFrame.Size = UDim2.new(1, -6, 0, 32)
+            ItemFrame.BackgroundColor3 = (TargetPlayer == p) and Color3.fromRGB(35, 35, 35) or Color3.fromRGB(18, 18, 18)
+
+            local ItemCorner = Instance.new("UICorner", ItemFrame)
+            ItemCorner.CornerRadius = UDim.new(0, 4)
+
+            local AvatarImg = Instance.new("ImageLabel", ItemFrame)
+            AvatarImg.Size = UDim2.new(0, 24, 0, 24)
+            AvatarImg.Position = UDim2.new(0, 4, 0.5, -12)
+            AvatarImg.BackgroundTransparency = 1
+
+            task.spawn(function()
+                pcall(function()
+                    local content = Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+                    AvatarImg.Image = content
+                end)
+            end)
+
+            local AvatarCorner = Instance.new("UICorner", AvatarImg)
+            AvatarCorner.CornerRadius = UDim.new(0, 12)
+
+            local DisplayName = Instance.new("TextLabel", ItemFrame)
+            DisplayName.Size = UDim2.new(0, 110, 0, 12)
+            DisplayName.Position = UDim2.new(0, 32, 0, 4)
+            DisplayName.Text = p.DisplayName
+            DisplayName.TextColor3 = Color3.fromRGB(255, 255, 255)
+            DisplayName.Font = Enum.Font.GothamBold
+            DisplayName.TextSize = 8
+            DisplayName.TextXAlignment = Enum.TextXAlignment.Left
+            DisplayName.BackgroundTransparency = 1
+
+            local Username = Instance.new("TextLabel", ItemFrame)
+            Username.Size = UDim2.new(0, 110, 0, 10)
+            Username.Position = UDim2.new(0, 32, 0, 16)
+            Username.Text = "@" .. p.Name
+            Username.TextColor3 = Color3.fromRGB(140, 140, 140)
+            Username.Font = Enum.Font.Gotham
+            Username.TextSize = 7
+            Username.TextXAlignment = Enum.TextXAlignment.Left
+            Username.BackgroundTransparency = 1
+
+            if TargetPlayer == p then
+                local CheckMark = Instance.new("TextLabel", ItemFrame)
+                CheckMark.Size = UDim2.new(0, 16, 0, 16)
+                CheckMark.Position = UDim2.new(1, -20, 0.5, -8)
+                CheckMark.Text = "✓"
+                CheckMark.TextColor3 = Color3.fromRGB(255, 255, 255)
+                CheckMark.Font = Enum.Font.GothamBold
+                CheckMark.TextSize = 10
+                CheckMark.BackgroundTransparency = 1
+            end
+
+            local ClickBtn = Instance.new("TextButton", ItemFrame)
+            ClickBtn.Size = UDim2.new(1, 0, 1, 0)
+            ClickBtn.BackgroundTransparency = 1
+            ClickBtn.Text = ""
+
+            ClickBtn.MouseButton1Click:Connect(function()
+                TargetPlayer = p
+                UpdatePlayerList()
+            end)
+        end
+    end
+
+    ListTitle.Text = "LISTA DE JOGADORES (" .. tostring(count) .. ")"
+end
+
 local function UpdateChinookList()
     for _, child in pairs(ChinookScrollFrame:GetChildren()) do
         if child:IsA("Frame") then child:Destroy() end
@@ -519,10 +595,9 @@ local function UpdateChinookList()
     end
 
     ChinookTitle.Text = "CHINOOKS (" .. tostring(count) .. ")"
-    ChinookScrollFrame.CanvasSize = UDim2.new(0, 0, 0, count * 35)
 end
 
--- // EVENTOS DE ATUALIZAÇÃO // --
+-- // EVENTOS DOS BOTÕES DA UI // --
 LaunchBtn.MouseButton1Click:Connect(function()
     if TargetPlayer then
         StartLoopMatter()
@@ -548,6 +623,7 @@ ExternalButton.MouseButton1Click:Connect(function()
     lastClickTime = currentTime
 end)
 
+-- // LISTENERS DE EVENTOS DA SESSÃO // --
 Players.PlayerAdded:Connect(UpdatePlayerList)
 Players.PlayerRemoving:Connect(function(p)
     if TargetPlayer == p then TargetPlayer = nil end
@@ -568,6 +644,7 @@ Workspace.DescendantRemoving:Connect(function(descendant)
     end
 end)
 
+-- Loop de verificação contínua para manter dados em tempo real
 task.spawn(function()
     while true do
         UpdatePlayerList()
@@ -576,5 +653,6 @@ task.spawn(function()
     end
 end)
 
+-- Inicialização imediata ao carregar o script
 UpdatePlayerList()
 UpdateChinookList()
